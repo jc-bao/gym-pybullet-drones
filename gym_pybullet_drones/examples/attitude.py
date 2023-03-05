@@ -35,7 +35,7 @@ DEFAULT_AGGREGATE = True
 DEFAULT_OBSTACLES = False
 DEFAULT_SIMULATION_FREQ_HZ = 500
 DEFAULT_CONTROL_FREQ_HZ = 500
-DEFAULT_DURATION_SEC = 2
+DEFAULT_DURATION_SEC = 5.0
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_COLAB = False
 
@@ -56,10 +56,10 @@ def run(
 ):
     #### Initialize the simulation #############################
     INIT_XYZS = np.array([
-        [0, 0, .0],
+        [0, 1.0, 1.0],
     ])
     INIT_RPYS = np.array([
-        [0, 0, 0],
+        [0.0, 0, 0],
     ])
     AGGR_PHY_STEPS = int(simulation_freq_hz /
                          control_freq_hz) if aggregate else 1
@@ -88,18 +88,41 @@ def run(
                     )
 
     #### Run the simulation ####################################
-    START = time.time()
-    for i in range(0, int(duration_sec*env.SIM_FREQ/50), AGGR_PHY_STEPS):
-        action = {str(i): np.array([0.027 * 9.8 * 1.0, 0, 0, 0]) for i in range(1)}
-        for _ in range(50):
-            obs, reward, done, info = env.step(action)
+    # generate trajectory
+    num_substeps = 50
+    t = np.arange(0, duration_sec, 1/500*num_substeps) # 0.1
+    A = 1.0
+    w = 2 * np.pi / 5.0
+    x = A*np.sin(w * t) 
+    y = A*np.cos(w * t)
+    z = np.ones_like(t)
+    traj_xyz = np.stack([x, y, z], axis=1)
+    vx = A*w * np.cos(w * t)
+    vy = -A*w * np.sin(w * t)
+    vz = np.zeros_like(t)
+    traj_vxyz = np.stack([vx, vy, vz], axis=1)
 
-        #### Log the simulation ####################################
-        for j in range(1):
-            logger.log(drone=j,
-                       timestamp=i/env.SIM_FREQ,
-                       state=obs[str(j)]["state"],
-                       )
+    START = time.time()
+    for i in range(0, int(duration_sec*env.SIM_FREQ/num_substeps), AGGR_PHY_STEPS):
+        # PID controller
+        state = env._getDroneStateVector(0)
+        total_force_drone = - np.array([0,0,-0.027*9.8]) - (state[:3] - traj_xyz[i]) * 0.2 - (state[10:13] - traj_vxyz[i]) * 0.1
+        total_force_drone_projected = (np.linalg.inv(rpy2rotmat(state[7:10])) @ total_force_drone)[2]
+        thrust_pid = np.clip(total_force_drone_projected, 0, 1.0)
+        ctl_row_pid = np.clip(np.arctan2(-total_force_drone[1], np.sqrt(total_force_drone[0]**2 + total_force_drone[2]**2)), -np.pi/3, np.pi/3)
+        ctl_pitch_pid = np.clip(np.arctan2(total_force_drone[0], total_force_drone[2]), -np.pi/3, np.pi/3)
+        action = {str(i): np.array([thrust_pid, ctl_row_pid, ctl_pitch_pid, 0]) for i in range(1)}
+        for _ in range(num_substeps):
+            obs, reward, done, info = env.step(action)
+            #### Log the simulation ####################################
+            for j in range(1):
+                act_log = np.zeros(12)
+                act_log[:4] = action[str(j)]
+                logger.log(drone=j,
+                        timestamp=i/env.SIM_FREQ,
+                        state=obs[str(j)]["state"],
+                        control=act_log,
+                        )
         if i % env.SIM_FREQ == 0:
             env.render()
         if gui:
@@ -109,6 +132,20 @@ def run(
     logger.save_as_csv("att")  # Optional CSV save
     if plot:
         logger.plot()
+
+def rpy2rotmat(rpy):
+    roll, pitch, yaw = rpy[0], rpy[1], rpy[2]
+    rotmat = np.zeros([3, 3])
+    rotmat[0, 0] = np.cos(yaw) * np.cos(pitch)
+    rotmat[0, 1] = np.cos(yaw) * np.sin(pitch) * np.sin(roll) - np.sin(yaw) * np.cos(roll)
+    rotmat[0, 2] = np.cos(yaw) * np.sin(pitch) * np.cos(roll) + np.sin(yaw) * np.sin(roll)
+    rotmat[1, 0] = np.sin(yaw) * np.cos(pitch)
+    rotmat[1, 1] = np.sin(yaw) * np.sin(pitch) * np.sin(roll) + np.cos(yaw) * np.cos(roll)
+    rotmat[1, 2] = np.sin(yaw) * np.sin(pitch) * np.cos(roll) - np.cos(yaw) * np.sin(roll)
+    rotmat[2, 0] = -np.sin(pitch)
+    rotmat[2, 1] = np.cos(pitch) * np.sin(roll)
+    rotmat[2, 2] = np.cos(pitch) * np.cos(roll)
+    return rotmat
 
 
 if __name__ == "__main__":

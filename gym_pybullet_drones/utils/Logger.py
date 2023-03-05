@@ -242,11 +242,13 @@ class Logger(object):
         row = 3
         for j in range(self.NUM_DRONES):
             axs[row, col].plot(t, self.states[j, 6, :], label="drone_"+str(j))
+            axs[row, col].plot(t, self.controls[j, 1, :], label="target_"+str(j), linestyle='--')
         axs[row, col].set_xlabel('time')
         axs[row, col].set_ylabel('r (rad)')
         row = 4
         for j in range(self.NUM_DRONES):
             axs[row, col].plot(t, self.states[j, 7, :], label="drone_"+str(j))
+            axs[row, col].plot(t, self.controls[j, 2, :], label="target_"+str(j), linestyle='--')
         axs[row, col].set_xlabel('time')
         axs[row, col].set_ylabel('p (rad)')
         row = 5
