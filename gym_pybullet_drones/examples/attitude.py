@@ -96,7 +96,7 @@ def run(
     A_base = 0.6
     w_base = 2 * np.pi / 5.0
     traj_xyz = np.zeros((len(t), 3))
-    traj_xyz[:, 2] += 1.2
+    traj_xyz[:, 2] += 1.0
     traj_vxyz = np.zeros((len(t), 3))
     for i in range(0,2,1):
         phase = np.random.rand(3) * 2 * np.pi
