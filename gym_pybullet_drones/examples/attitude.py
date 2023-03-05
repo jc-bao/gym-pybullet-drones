@@ -35,7 +35,7 @@ DEFAULT_AGGREGATE = True
 DEFAULT_OBSTACLES = False
 DEFAULT_SIMULATION_FREQ_HZ = 500
 DEFAULT_CONTROL_FREQ_HZ = 500
-DEFAULT_DURATION_SEC = 5.0
+DEFAULT_DURATION_SEC = 10.0
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_COLAB = False
 
@@ -93,7 +93,7 @@ def run(
 
     t = np.arange(0, duration_sec, 1/500*num_substeps) # 0.1
     t = np.tile(t, (3,1)).transpose()
-    A_base = 0.6
+    A_base = 0.5
     w_base = 2 * np.pi / 5.0
     traj_xyz = np.zeros((len(t), 3))
     traj_xyz[:, 2] += 1.0
@@ -126,6 +126,8 @@ def run(
             for j in range(1):
                 act_log = np.zeros(12)
                 act_log[:4] = action[str(j)]
+                act_log[4:7] = traj_xyz[i]
+                act_log[7:10] = traj_vxyz[i]
                 logger.log(drone=j,
                         timestamp=i/env.SIM_FREQ,
                         state=obs[str(j)]["state"],
