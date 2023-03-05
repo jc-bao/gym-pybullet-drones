@@ -25,6 +25,7 @@ import random
 import numpy as np
 import pybullet as p
 import matplotlib.pyplot as plt
+from icecream import install
 
 from gym_pybullet_drones.utils.enums import DroneModel, Physics
 from gym_pybullet_drones.envs.CtrlAviary import CtrlAviary
@@ -49,6 +50,8 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 DEFAULT_DURATION_SEC = 12
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_COLAB = False
+
+install()
 
 def run(
         drone=DEFAULT_DRONES,

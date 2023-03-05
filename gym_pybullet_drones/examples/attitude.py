@@ -33,9 +33,9 @@ DEFAULT_PLOT = True
 DEFAULT_USER_DEBUG_GUI = False
 DEFAULT_AGGREGATE = True
 DEFAULT_OBSTACLES = False
-DEFAULT_SIMULATION_FREQ_HZ = 100
-DEFAULT_CONTROL_FREQ_HZ = 10
-DEFAULT_DURATION_SEC = 5
+DEFAULT_SIMULATION_FREQ_HZ = 500
+DEFAULT_CONTROL_FREQ_HZ = 500
+DEFAULT_DURATION_SEC = 2
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_COLAB = False
 
@@ -89,9 +89,10 @@ def run(
 
     #### Run the simulation ####################################
     START = time.time()
-    for i in range(0, int(duration_sec*env.SIM_FREQ), AGGR_PHY_STEPS):
-        action = {str(i): np.array([0, 0, 0.027 * 9.8, 0]) for i in range(1)}
-        obs, reward, done, info = env.step(action)
+    for i in range(0, int(duration_sec*env.SIM_FREQ/50), AGGR_PHY_STEPS):
+        action = {str(i): np.array([0.027 * 9.8 * 1.0, 0, 0, 0]) for i in range(1)}
+        for _ in range(50):
+            obs, reward, done, info = env.step(action)
 
         #### Log the simulation ####################################
         for j in range(1):
@@ -111,33 +112,4 @@ def run(
 
 
 if __name__ == "__main__":
-    #### Define and parse (optional) arguments for the script ##
-    parser = argparse.ArgumentParser(
-        description='Attitude control example using AttitudeAviary')
-    parser.add_argument('--drone',              default=DEFAULT_DRONE,     type=DroneModel,
-                        help='Drone model (default: CF2X)', metavar='', choices=DroneModel)
-    parser.add_argument('--gui',                default=DEFAULT_GUI,       type=str2bool,
-                        help='Whether to use PyBullet GUI (default: True)', metavar='')
-    parser.add_argument('--record_video',       default=DEFAULT_RECORD_VIDEO,
-                        type=str2bool,      help='Whether to record a video (default: False)', metavar='')
-    parser.add_argument('--plot',               default=DEFAULT_PLOT,       type=str2bool,
-                        help='Whether to plot the simulation results (default: True)', metavar='')
-    parser.add_argument('--user_debug_gui',     default=DEFAULT_USER_DEBUG_GUI,      type=str2bool,
-                        help='Whether to add debug lines and parameters to the GUI (default: False)', metavar='')
-    parser.add_argument('--aggregate',          default=DEFAULT_AGGREGATE,       type=str2bool,
-                        help='Whether to aggregate physics steps (default: False)', metavar='')
-    parser.add_argument('--obstacles',          default=DEFAULT_OBSTACLES,      type=str2bool,
-                        help='Whether to add obstacles to the environment (default: False)', metavar='')
-    parser.add_argument('--simulation_freq_hz', default=DEFAULT_SIMULATION_FREQ_HZ,
-                        type=int,           help='Simulation frequency in Hz (default: 240)', metavar='')
-    parser.add_argument('--control_freq_hz',    default=DEFAULT_CONTROL_FREQ_HZ,
-                        type=int,           help='Control frequency in Hz (default: 48)', metavar='')
-    parser.add_argument('--duration_sec',       default=DEFAULT_DURATION_SEC,         type=int,
-                        help='Duration of the simulation in seconds (default: 5)', metavar='')
-    parser.add_argument('--output_folder',      default=DEFAULT_OUTPUT_FOLDER, type=str,
-                        help='Folder where to save logs (default: "results")', metavar='')
-    parser.add_argument('--colab',              default=DEFAULT_COLAB, type=bool,
-                        help='Whether example is being run by a notebook (default: "False")', metavar='')
-    ARGS = parser.parse_args()
-
     run()
