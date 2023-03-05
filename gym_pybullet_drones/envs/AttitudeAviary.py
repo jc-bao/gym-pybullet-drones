@@ -28,13 +28,13 @@ class AttitudeAviary(BaseAviary):
                  ):
         #### Create integrated controllers #########################
         os.environ['KMP_DUPLICATE_LIB_OK']='True'
-        if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
-            self.ctrl = [
-                AttitudePIDControl(drone_model=DroneModel.CF2X)
-                for _ in range(num_drones)
-            ]
-        elif drone_model == DroneModel.HB:
-            raise ValueError("[ERROR] in AttitudeAviary.__init__(), Attitude control not supported for DroneModel.HB.")
+        # if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
+        self.ctrl = [
+            AttitudePIDControl(drone_model=DroneModel.CF2X)
+            for _ in range(num_drones)
+        ]
+        # elif drone_model == DroneModel.HB:
+        #     raise ValueError("[ERROR] in AttitudeAviary.__init__(), Attitude control not supported for DroneModel.HB.")
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
                          neighbourhood_radius=neighbourhood_radius,
@@ -65,7 +65,7 @@ class AttitudeAviary(BaseAviary):
 
         """
         #### Action vector ######### X       Y       Z   fract. of MAX_SPEED_KMH
-        act_lower_bound = np.array([-1,     -1,     -1,                        0])
+        act_lower_bound = np.array([-1,     -1,     -1,                        -1])
         act_upper_bound = np.array([ 1,      1,      1,                        1])
         return spaces.Dict({str(i): spaces.Box(low=act_lower_bound,
                                                high=act_upper_bound,
