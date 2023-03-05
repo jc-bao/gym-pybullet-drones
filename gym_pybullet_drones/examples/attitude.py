@@ -14,9 +14,9 @@ The drones use interal PID control to track a target Attitude.
 
 """
 import time
-import argparse
 import numpy as np
 from icecream import install
+import pybullet as p
 
 from gym_pybullet_drones.utils.enums import DroneModel, Physics
 from gym_pybullet_drones.utils.Logger import Logger
@@ -90,17 +90,25 @@ def run(
     #### Run the simulation ####################################
     # generate trajectory
     num_substeps = 50
+
     t = np.arange(0, duration_sec, 1/500*num_substeps) # 0.1
-    A = 1.0
-    w = 2 * np.pi / 5.0
-    x = A*np.sin(w * t) 
-    y = A*np.cos(w * t)
-    z = np.ones_like(t)
-    traj_xyz = np.stack([x, y, z], axis=1)
-    vx = A*w * np.cos(w * t)
-    vy = -A*w * np.sin(w * t)
-    vz = np.zeros_like(t)
-    traj_vxyz = np.stack([vx, vy, vz], axis=1)
+    t = np.tile(t, (3,1)).transpose()
+    A_base = 0.6
+    w_base = 2 * np.pi / 5.0
+    traj_xyz = np.zeros((len(t), 3))
+    traj_xyz[:, 2] += 1.2
+    traj_vxyz = np.zeros((len(t), 3))
+    for i in range(0,2,1):
+        phase = np.random.rand(3) * 2 * np.pi
+        scale = np.random.rand(3) * 0.3 + 0.7
+        A = A_base * scale * (2.0**(-i))
+        w = w_base * (2**i)
+        traj_xyz += A * np.cos(t*w+phase)
+        traj_vxyz += - w * A * np.sin(t*w+phase)
+    # show traj_xyz as curve in bullet 
+    for i in range(len(t)-1):
+        p.addUserDebugLine(traj_xyz[i], traj_xyz[i+1], lineColorRGB=[1,0,0], lineWidth=3)
+
 
     START = time.time()
     for i in range(0, int(duration_sec*env.SIM_FREQ/num_substeps), AGGR_PHY_STEPS):
