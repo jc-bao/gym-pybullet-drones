@@ -36,7 +36,7 @@ DEFAULT_AGGREGATE = True
 DEFAULT_OBSTACLES = False
 DEFAULT_SIMULATION_FREQ_HZ = 500
 DEFAULT_CONTROL_FREQ_HZ = 500
-DEFAULT_DURATION_SEC = 4.0
+DEFAULT_DURATION_SEC = 8.0
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_COLAB = False
 
@@ -55,6 +55,10 @@ def run(
         output_folder=DEFAULT_OUTPUT_FOLDER,
         colab=DEFAULT_COLAB
 ):
+    # set torch numpy print precision
+    torch.set_printoptions(precision=2)
+    np.set_printoptions(precision=2)
+
     #### Initialize the simulation #############################
     INIT_XYZS = np.array([
         [0, 0.0, 1.0],
@@ -92,32 +96,30 @@ def run(
     # generate trajectory
     num_substeps = 50
 
-    t = np.arange(0, duration_sec*2*10.0) # 0.1
+    delta_t = 0.1
+    base_w = 2 * np.pi / (40.0 * delta_t)
+    t = np.arange(0, int(duration_sec/delta_t*2)) * delta_t
     t = np.tile(t, (3,1)).transpose()
-    A_base = 0.5
-    w_base = 2 * np.pi / 20.0
     traj_xyz = np.zeros((len(t), 3))
-    traj_xyz[:, 2] += 0.8
+    traj_xyz[:, 2] += 1.0
     traj_vxyz = np.zeros((len(t), 3))
-    for i in range(0,1,1):
+    for i in range(0,2,1):
+        A = 0.5 * (np.random.rand(3) * 0.3 + 0.7) * (2.0**(-i))
+
+        # DEBUG
+        # A[:] = 0.5 * (2.0**(-i))
+
+        w = base_w*(2**i)
+
         phase = np.random.rand(3) * 2 * np.pi
         
         # DEBUG
-        phase[0] = 0.0
-        phase[1] = np.pi/2
+        # phase[0] = 0.0
+        # phase[1] = np.pi/2
+        # phase[2] = np.pi/4
 
-        scale = np.random.rand(3) * 0.3 + 0.7
-
-        # DEBUG
-        scale[0] = 1.0
-        scale[1] = 1.0
-        scale[2] = 0.0
-
-        A = A_base * scale * (2.0**(-i))
-        w = w_base * (2**i)
         traj_xyz += A * np.cos(t*w+phase)
         traj_vxyz += - w * A * np.sin(t*w+phase)
-    
     # show traj_xyz as curve in bullet 
     traj_xyz_drone = traj_xyz.copy()
     traj_xyz_drone[:, 2] += 0.2
@@ -129,14 +131,13 @@ def run(
     target_sphere_body = p.createMultiBody(baseVisualShapeIndex=target_sphere, physicsClientId = env.CLIENT)
 
     # load PPO controller
-    # loaded_agent = torch.load('/Users/reedpan/Desktop/Research/gym-pybullet-drones/gym_pybullet_drones/examples/results/ppo_track_robust.pt', map_location='cpu')
-    # policy = loaded_agent['actor']
-    # compressor = loaded_agent['compressor']
+    loaded_agent = torch.load('/Users/reedpan/Desktop/Research/gym-pybullet-drones/gym_pybullet_drones/examples/results/ppo_track_robust_6.pt', map_location='cpu')
+    policy = loaded_agent['actor']
+    compressor = loaded_agent['compressor']
 
     START = time.time()
     for i in range(0, int(duration_sec*env.SIM_FREQ/num_substeps), AGGR_PHY_STEPS):
         state = env._getDroneStateVector(0)
-        '''
         # PPO controller
         # get observation
         xyz_drone = state[:3]
@@ -145,14 +146,17 @@ def run(
         xyz_obj[2] -= 0.2
         xyz_obj_normed = (xyz_obj - np.array([0.,0.,1.])) / np.ones(3)
         xyz_target = traj_xyz[i]
-        xyz_target_normed = (xyz_target - np.array([0., 0., 1.])) / (np.ones(3)*0.7)
+        xyz_target_normed = (xyz_target - np.array([0., 0., 1.0])) / (np.ones(3)*0.7)
         vxyz_drone = state[10:13]
         vxyz_drone_normed = (vxyz_drone - np.zeros(3)) / (np.ones(3) * 2.0)
         vxyz_obj_normed = vxyz_drone_normed
         rpy_drone = state[7:10]
         rpy_drone_normed = (rpy_drone - np.zeros(3)) / np.array([np.pi/3, np.pi/3, 1.0])
-        future_traj_x = traj_xyz[i:i+5].flatten()
+        future_traj_x = traj_xyz[i:i+5].copy()
+        future_traj_x[:, 2] -= 1.0
+        future_traj_x = future_traj_x.flatten()
         future_traj_v = traj_vxyz[i:i+5].flatten()
+        # ic(xyz_drone_normed, xyz_obj_normed, xyz_target_normed, vxyz_drone_normed, vxyz_obj_normed, rpy_drone_normed, xyz_obj - xyz_target, vxyz_drone - traj_vxyz[i], future_traj_x, future_traj_v)
         obs = np.concatenate([xyz_drone_normed, xyz_obj_normed, xyz_target_normed, vxyz_drone_normed, vxyz_obj_normed, rpy_drone_normed, xyz_obj - xyz_target, vxyz_drone - traj_vxyz[i], future_traj_x, future_traj_v], axis=0)
         obs = torch.from_numpy(obs).float().unsqueeze(0)
         # get expert info
@@ -170,15 +174,14 @@ def run(
             action = policy(obs, compressor(e))
         action = action.cpu().numpy().squeeze()
         ctl_thrust = action[0] * 0.3 + 0.3
-        ctl_roll = action[1] * np.pi/3
-        ctl_pitch = action[2] * np.pi/3
-        '''
+        ctl_roll = action[1] * np.pi/6
+        ctl_pitch = action[2] * np.pi/6
         # PID controller
-        total_force_drone = - np.array([0,0,-0.027*9.8]) - (state[:3] - traj_xyz_drone[i]) * 0.2 - (state[10:13] - traj_vxyz[i]) * 0.1
-        total_force_drone_projected = (np.linalg.inv(rpy2rotmat(state[7:10])) @ total_force_drone)[2]
-        ctl_thrust = np.clip(total_force_drone_projected, 0, 1.0)
-        ctl_roll = np.clip(np.arctan2(-total_force_drone[1], np.sqrt(total_force_drone[0]**2 + total_force_drone[2]**2)), -np.pi/3, np.pi/3)
-        ctl_pitch = np.clip(np.arctan2(total_force_drone[0], total_force_drone[2]), -np.pi/3, np.pi/3)
+        # total_force_drone = - np.array([0,0,-0.027*9.8]) - (state[:3] - traj_xyz_drone[i]) * 0.1 - (state[10:13] - traj_vxyz[i]) * 0.2
+        # total_force_drone_projected = (np.linalg.inv(rpy2rotmat(state[7:10])) @ total_force_drone)[2]
+        # ctl_thrust = np.clip(total_force_drone_projected, 0, 1.0)
+        # ctl_roll = np.clip(np.arctan2(-total_force_drone[1], np.sqrt(total_force_drone[0]**2 + total_force_drone[2]**2)), -np.pi/3, np.pi/3)
+        # ctl_pitch = np.clip(np.arctan2(total_force_drone[0], total_force_drone[2]), -np.pi/3, np.pi/3)
         '''
         # Debug controller
         roll = state[7]

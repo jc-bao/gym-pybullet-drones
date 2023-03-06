@@ -62,11 +62,14 @@ class AttitudePIDControl(BaseControl):
                        ):
         self.control_counter += 1
         target_thrust = (math.sqrt(target_thrust / (4*self.KF)) - self.PWM2RPM_CONST) / self.PWM2RPM_SCALE
+        target_rpy_rate = np.zeros(3)
+        # cur_rpy = p.getEulerFromQuaternion(cur_quat)
+        # target_rpy_rate[2] = - cur_rpy[2] * 10.0
         rpm = self._AttitudeControl(control_timestep,
                                     target_thrust,
                                     cur_quat,
                                     target_rpy,
-                                    np.zeros(3)
+                                    target_rpy_rate
                                     )
         return rpm, np.zeros(3), 0.0
 
