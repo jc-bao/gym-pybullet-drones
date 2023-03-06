@@ -17,6 +17,7 @@ import time
 import numpy as np
 from icecream import install
 import pybullet as p
+import torch
 
 from gym_pybullet_drones.utils.enums import DroneModel, Physics
 from gym_pybullet_drones.utils.Logger import Logger
@@ -35,7 +36,7 @@ DEFAULT_AGGREGATE = True
 DEFAULT_OBSTACLES = False
 DEFAULT_SIMULATION_FREQ_HZ = 500
 DEFAULT_CONTROL_FREQ_HZ = 500
-DEFAULT_DURATION_SEC = 10.0
+DEFAULT_DURATION_SEC = 4.0
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_COLAB = False
 
@@ -56,7 +57,7 @@ def run(
 ):
     #### Initialize the simulation #############################
     INIT_XYZS = np.array([
-        [0, 1.0, 1.0],
+        [0, 0.0, 1.0],
     ])
     INIT_RPYS = np.array([
         [0.0, 0, 0],
@@ -91,42 +92,116 @@ def run(
     # generate trajectory
     num_substeps = 50
 
-    t = np.arange(0, duration_sec, 1/500*num_substeps) # 0.1
+    t = np.arange(0, duration_sec*2*10.0) # 0.1
     t = np.tile(t, (3,1)).transpose()
     A_base = 0.5
-    w_base = 2 * np.pi / 5.0
+    w_base = 2 * np.pi / 20.0
     traj_xyz = np.zeros((len(t), 3))
-    traj_xyz[:, 2] += 1.0
+    traj_xyz[:, 2] += 0.8
     traj_vxyz = np.zeros((len(t), 3))
-    for i in range(0,2,1):
+    for i in range(0,1,1):
         phase = np.random.rand(3) * 2 * np.pi
+        
+        # DEBUG
+        phase[0] = 0.0
+        phase[1] = np.pi/2
+
         scale = np.random.rand(3) * 0.3 + 0.7
+
+        # DEBUG
+        scale[0] = 1.0
+        scale[1] = 1.0
+        scale[2] = 0.0
+
         A = A_base * scale * (2.0**(-i))
         w = w_base * (2**i)
         traj_xyz += A * np.cos(t*w+phase)
         traj_vxyz += - w * A * np.sin(t*w+phase)
+    
     # show traj_xyz as curve in bullet 
+    traj_xyz_drone = traj_xyz.copy()
+    traj_xyz_drone[:, 2] += 0.2
     for i in range(len(t)-1):
-        p.addUserDebugLine(traj_xyz[i], traj_xyz[i+1], lineColorRGB=[1,0,0], lineWidth=3)
+        p.addUserDebugLine(traj_xyz_drone[i], traj_xyz_drone[i+1], lineColorRGB=[1,0,0], lineWidth=3)
+    # create a sphere to show current target position
+    target_sphere = p.createVisualShape(shapeType=p.GEOM_SPHERE, radius=0.05, rgbaColor=[1,0,0,1], physicsClientId = env.CLIENT)
+    # create body from visual shape
+    target_sphere_body = p.createMultiBody(baseVisualShapeIndex=target_sphere, physicsClientId = env.CLIENT)
 
+    # load PPO controller
+    # loaded_agent = torch.load('/Users/reedpan/Desktop/Research/gym-pybullet-drones/gym_pybullet_drones/examples/results/ppo_track_robust.pt', map_location='cpu')
+    # policy = loaded_agent['actor']
+    # compressor = loaded_agent['compressor']
 
     START = time.time()
     for i in range(0, int(duration_sec*env.SIM_FREQ/num_substeps), AGGR_PHY_STEPS):
-        # PID controller
         state = env._getDroneStateVector(0)
-        total_force_drone = - np.array([0,0,-0.027*9.8]) - (state[:3] - traj_xyz[i]) * 0.2 - (state[10:13] - traj_vxyz[i]) * 0.1
+        '''
+        # PPO controller
+        # get observation
+        xyz_drone = state[:3]
+        xyz_drone_normed = (xyz_drone - np.array([0.,0.,1.])) / np.ones(3)
+        xyz_obj = state[:3]
+        xyz_obj[2] -= 0.2
+        xyz_obj_normed = (xyz_obj - np.array([0.,0.,1.])) / np.ones(3)
+        xyz_target = traj_xyz[i]
+        xyz_target_normed = (xyz_target - np.array([0., 0., 1.])) / (np.ones(3)*0.7)
+        vxyz_drone = state[10:13]
+        vxyz_drone_normed = (vxyz_drone - np.zeros(3)) / (np.ones(3) * 2.0)
+        vxyz_obj_normed = vxyz_drone_normed
+        rpy_drone = state[7:10]
+        rpy_drone_normed = (rpy_drone - np.zeros(3)) / np.array([np.pi/3, np.pi/3, 1.0])
+        future_traj_x = traj_xyz[i:i+5].flatten()
+        future_traj_v = traj_vxyz[i:i+5].flatten()
+        obs = np.concatenate([xyz_drone_normed, xyz_obj_normed, xyz_target_normed, vxyz_drone_normed, vxyz_obj_normed, rpy_drone_normed, xyz_obj - xyz_target, vxyz_drone - traj_vxyz[i], future_traj_x, future_traj_v], axis=0)
+        obs = torch.from_numpy(obs).float().unsqueeze(0)
+        # get expert info
+        mass_obj_normed = (np.array([0.0]) - 0.0) / 1.0
+        length_rope_normed = (np.array([0.2]) - 0.2) / 1.0
+        mass_drone_normed = (np.array([0.027]) - 0.0275) / 0.0025
+        damping_rate_drone_normed = (np.array([0.0]) - 0.025) / 0.025
+        damping_rate_obj_normed = (np.array([0.0]) - 0.025) / 0.025
+        attitude_pid_p = (np.array([0.075]) - 0.075) / 0.025
+        attitude_pid_d = (np.array([0.5]) - 0.5) / 0.1
+        e = np.concatenate([mass_obj_normed, length_rope_normed, mass_drone_normed, damping_rate_drone_normed, damping_rate_obj_normed, attitude_pid_p, attitude_pid_d], axis=0)
+        e = torch.from_numpy(e).float().unsqueeze(0)
+        # get action
+        with torch.no_grad():
+            action = policy(obs, compressor(e))
+        action = action.cpu().numpy().squeeze()
+        ctl_thrust = action[0] * 0.3 + 0.3
+        ctl_roll = action[1] * np.pi/3
+        ctl_pitch = action[2] * np.pi/3
+        '''
+        # PID controller
+        total_force_drone = - np.array([0,0,-0.027*9.8]) - (state[:3] - traj_xyz_drone[i]) * 0.2 - (state[10:13] - traj_vxyz[i]) * 0.1
         total_force_drone_projected = (np.linalg.inv(rpy2rotmat(state[7:10])) @ total_force_drone)[2]
-        thrust_pid = np.clip(total_force_drone_projected, 0, 1.0)
-        ctl_row_pid = np.clip(np.arctan2(-total_force_drone[1], np.sqrt(total_force_drone[0]**2 + total_force_drone[2]**2)), -np.pi/3, np.pi/3)
-        ctl_pitch_pid = np.clip(np.arctan2(total_force_drone[0], total_force_drone[2]), -np.pi/3, np.pi/3)
-        action = {str(i): np.array([thrust_pid, ctl_row_pid, ctl_pitch_pid, 0]) for i in range(1)}
+        ctl_thrust = np.clip(total_force_drone_projected, 0, 1.0)
+        ctl_roll = np.clip(np.arctan2(-total_force_drone[1], np.sqrt(total_force_drone[0]**2 + total_force_drone[2]**2)), -np.pi/3, np.pi/3)
+        ctl_pitch = np.clip(np.arctan2(total_force_drone[0], total_force_drone[2]), -np.pi/3, np.pi/3)
+        '''
+        # Debug controller
+        roll = state[7]
+        pitch = state[8]
+        ctl_thrust = 0.027 * 9.8 / np.cos(np.sqrt(roll**2 + pitch**2))
+        if i%40 < 10:
+            ctl_pitch = np.pi/24
+        elif i%40 < 30:
+            ctl_pitch = -np.pi/24
+        else:
+            ctl_pitch = np.pi/24
+        ctl_roll = ctl_pitch
+        '''
+        action = {str(i): np.array([ctl_thrust, ctl_roll, ctl_pitch, 0]) for i in range(1)}
+        # set target_sphere to the traj_xyz_drone[i]
+        p.resetBasePositionAndOrientation(target_sphere_body, traj_xyz_drone[i], (0,0,0,1), physicsClientId = env.CLIENT)
         for _ in range(num_substeps):
             obs, reward, done, info = env.step(action)
             #### Log the simulation ####################################
             for j in range(1):
                 act_log = np.zeros(12)
                 act_log[:4] = action[str(j)]
-                act_log[4:7] = traj_xyz[i]
+                act_log[4:7] = traj_xyz_drone[i]
                 act_log[7:10] = traj_vxyz[i]
                 logger.log(drone=j,
                         timestamp=i/env.SIM_FREQ,

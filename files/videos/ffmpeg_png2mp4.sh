@@ -9,4 +9,4 @@
 FRAME_RATE=24
 RESOLUTION=640x480
 
-ffmpeg -r $FRAME_RATE -f image2 -s $RESOLUTION -i /Users/reedpan/Desktop/Research/gym-pybullet-drones/gym_pybullet_drones/examples/results/recording_03.05.2023_18.48.49/frame_%d.png -vcodec libx264 -crf 25  -pix_fmt yuv420p video.mp4
+ffmpeg -r $FRAME_RATE -f image2 -s $RESOLUTION -i /Users/reedpan/Desktop/Research/gym-pybullet-drones/gym_pybullet_drones/examples/results/recording_03.06.2023_07.45.27/frame_%d.png -vcodec libx264 -crf 25  -pix_fmt yuv420p video.mp4
