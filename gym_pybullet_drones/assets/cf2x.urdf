@@ -14,12 +14,6 @@
             <inertia ixx="1.4e-5" ixy="0.0" ixz="0.0" iyy="1.4e-5" iyz="0.0" izz="2.17e-5" />
         </inertial>
 
-        <!-- links>
-      <carlos url="https://arxiv.org/pdf/1608.05786.pdf" />
-      <julian url="http://mikehamer.info/assets/papers/Crazyflie%20Modelling.pdf" />
-      <mit url="http://groups.csail.mit.edu/robotics-center/public_papers/Landry15.pdf" />
-    </links -->
-
         <visual>
             <origin rpy="0 0 55" xyz="0 0 0" />
             <geometry>
@@ -99,39 +93,21 @@
         <child link="center_of_mass_link" />
     </joint>
 
-    <!-- a gamble joint connect a cylinder top to the center of mass -->
-    <!-- <link name="rope">
-        <inertial>
-            <origin rpy="0 0 0" xyz="0 0 0" />
-            <mass value="0.00" />
-            <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
-        </inertial>
-        <visual>
-            <origin rpy="0 0 0" xyz="0 0 -0.1" />
-            <geometry>
-                <cylinder radius=".001" length=".2" />
-            </geometry>
-            <material name="red">
-                <color rgba="0.0 1.0 0.0 0.5" />
-            </material>
-        </visual>
-    </link>
-
-    <joint name="rope_top_joint" type="fixed">
-        <origin xyz="0 0 0.0" rpy="0 0 0.0" />
-        <parent link="center_of_mass_link" />
-        <child link="rope" />
-    </joint> -->
-
     <!-- a sphere with weight 0.01kg attach to the end of the rope -->
-    <!-- <link name="rope_end">
+    <link name="rope_end">
         <inertial>
-            <origin rpy="0 0 0" xyz="0 0 0" />
-            <mass value="0.00" />
+            <origin rpy="0 0 0" xyz="0 0.0 -0.2" />
+            <mass value="0.0001" />
             <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
         </inertial>
+        <collision>
+            <origin rpy="0 0 0" xyz="0 0.0 -0.2" />
+            <geometry>
+                <sphere radius=".01" />
+            </geometry>
+        </collision>
         <visual>
-            <origin rpy="0 0 0" xyz="0 0 0.0" />
+            <origin rpy="0 0 0" xyz="0 0.0 -0.2" />
             <geometry>
                 <sphere radius=".01" />
             </geometry>
@@ -140,11 +116,31 @@
             </material>
         </visual>
     </link>
-    <joint name="rope_end_joint" type="fixed">
-        <origin xyz="0 0 -0.2" rpy="0 0 0" />
-        <parent link="rope" />
-        <child link="rope_end" />
-    </joint> -->
 
+    <link name="virtual_link0">
+        <inertial>
+            <origin rpy="0 0 0" xyz="0 0 0" />
+            <mass value="0" />
+            <inertia ixx="0" ixy="0" ixz="0" iyy="0" iyz="0" izz="0" />
+        </inertial>
+    </link>
+
+    <joint name="joint0_x" type="revolute">
+        <axis xyz="1 0 0" />
+        <dynamics damping="0.0" friction="0.0"/>
+        <limit lower="-10000" upper="10000" effort="1000.0" velocity="1000.0"/>
+        <origin xyz="0 0 0.0" rpy="0 0 0" />
+        <parent link="center_of_mass_link" />
+        <child link="virtual_link0" />
+    </joint>
+
+    <joint name="joint0_y" type="revolute">
+        <axis xyz="0 1 0" />
+        <dynamics damping="0.0" friction="0.0"/>
+        <limit lower="-10000" upper="10000" effort="1000.0" velocity="1000.0"/>
+        <origin xyz="0 0 0.0" rpy="0 0 0" />
+        <parent link="virtual_link0" />
+        <child link="rope_end" />
+    </joint>
 
 </robot>

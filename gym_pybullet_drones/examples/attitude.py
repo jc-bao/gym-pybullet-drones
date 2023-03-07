@@ -84,6 +84,9 @@ def run(
                          obstacles=obstacles,
                          user_debug_gui=user_debug_gui
                          )
+    # set rope joint to free
+    for i in range(5, 7):
+        p.setJointMotorControl2(env.DRONE_IDS[0], i, controlMode=p.TORQUE_CONTROL, force=0.0)
 
     #### Initialize the logger #################################
     logger = Logger(logging_freq_hz=int(simulation_freq_hz/AGGR_PHY_STEPS),
@@ -91,29 +94,6 @@ def run(
                     output_folder=output_folder,
                     colab=colab
                     )
-
-    # attach sphere to drone
-    # create a sphere weight 0.01 to attach to the drone
-    # sphereStartPos = [0,0,0.8]
-    # sphereRadius = 0.02
-    # sphereId = p.createCollisionShape(p.GEOM_SPHERE, radius=sphereRadius)
-    # sphereVisualShapeId = p.createVisualShape(p.GEOM_SPHERE, radius=sphereRadius, rgbaColor=[1,0,0,1])
-    # sphereStartOrientation = p.getQuaternionFromEuler([0,0,0])
-    # sphere = p.createMultiBody(0.001, sphereId, sphereVisualShapeId, sphereStartPos, sphereStartOrientation, physicsClientId=env.CLIENT)
-
-    # create a spherical joint to attach the sphere to the box
-    # sphereJoint = p.createConstraint(
-    #     parentBodyUniqueId=env.DRONE_IDS[0], 
-    #     parentLinkIndex=-1,
-    #     childBodyUniqueId=sphere,
-    #     childLinkIndex=-1,
-    #     jointType=p.JOINT_FIXED,
-    #     jointAxis=[0,0,0],
-    #     parentFramePosition=[0,0,0],
-    #     childFramePosition=[0,0,-0.2], 
-    #     physicsClientId=env.CLIENT
-    # )
-    # p.changeConstraint(sphereJoint, maxForce=10)
 
     #### Run the simulation ####################################
     # generate trajectory
